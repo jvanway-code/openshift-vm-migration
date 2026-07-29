@@ -1,0 +1,74 @@
+---
+# MTV and Target Namespaces
+mtv_namespace: "openshift-mtv"
+target_namespace: "target-vm-namespace"
+
+# vSphere Connection Details
+vsphere_url: "https://<VCENTER_FQDN_OR_IP>/sdk"
+vsphere_user: "<VCENTER_USERNAME>"
+vsphere_password: "<VCENTER_PASSWORD>"
+vsphere_insecure_skip_verify: true
+
+# Secret Definitions for Providers
+mtv_secrets:
+  - name: "vsphere-credentials"
+    namespace: "{{ mtv_namespace }}"
+    user: "{{ vsphere_user }}"
+    password: "{{ vsphere_password }}"
+    insecureSkipVerify: "{{ vsphere_insecure_skip_verify | string }}"
+    url: "{{ vsphere_url }}"
+
+# Provider Configurations
+mtv_providers:
+  - name: "vsphere-provider"
+    namespace: "{{ mtv_namespace }}"
+    type: "vsphere"
+    url: "{{ vsphere_url }}"
+    secret: "vsphere-credentials"
+  - name: "host"
+    namespace: "{{ mtv_namespace }}"
+    type: "openshift"
+
+# Network Mappings
+mtv_network_maps:
+  - name: "vsphere-network-map"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "vsphere-provider"
+    destination_provider: "host"
+    map:
+      - source:
+          name: "<SOURCE_PORT_GROUP>"
+        destination:
+          type: "pod"  # Options: "pod" or "multus"
+
+# Storage Mappings
+mtv_storage_maps:
+  - name: "vsphere-storage-map"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "vsphere-provider"
+    destination_provider: "host"
+    map:
+      - source:
+          name: "<SOURCE_DATASTORE>"
+        destination:
+          storageClass: "<TARGET_STORAGE_CLASS>"
+
+# Migration Plans
+mtv_plans:
+  - name: "vm-migration-plan"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "vsphere-provider"
+    destination_provider: "host"
+    network_map: "vsphere-network-map"
+    storage_map: "vsphere-storage-map"
+    target_namespace: "{{ target_namespace }}"
+    vms:
+      - name: "<SOURCE_VM_NAME_1>"
+      - name: "<SOURCE_VM_NAME_2>"
+
+# Migration Executions
+mtv_migrations:
+  - plan_name: "vm-migration-plan"
+    namespace: "{{ mtv_namespace }}"
+    wait_for_completion: true
+    timeout: 3600
