@@ -24,12 +24,16 @@ mtv_secrets: &mtv_secrets
     url: "{{ vsphere_url }}"
 mtv_management_secrets: *mtv_secrets
 
-# VMware Provider Definitions (Uses mtv_management_vmware_providers to avoid variable name collision)
-mtv_management_vmware_providers:
+# Provider Configurations (Required by mtv_maps validation)
+mtv_management_providers: &mtv_management_providers
   - name: "vmware"
     namespace: "{{ mtv_namespace }}"
+    type: "vsphere"
     url: "{{ vsphere_url }}"
     secret: "vsphere-credentials"
+  - name: "host"
+    namespace: "{{ mtv_namespace }}"
+    type: "openshift"
 
 # Network Mappings
 mtv_network_maps: &mtv_network_maps
@@ -39,7 +43,7 @@ mtv_network_maps: &mtv_network_maps
     destination_provider: "host"
     map:
       - source:
-          name: "{{ vsphere_port_group | default('VM Network') }}"
+          name: "{{ vsphere_port_group | default('segment-migrating-to-ocpvirt') }}"
         destination:
           type: "pod"
 mtv_management_network_maps: *mtv_network_maps
@@ -52,7 +56,7 @@ mtv_storage_maps: &mtv_storage_maps
     destination_provider: "host"
     map:
       - source:
-          name: "{{ vsphere_datastore | default('datastore1') }}"
+          name: "{{ vsphere_datastore | default('workload_share') }}"
         destination:
           storageClass: "{{ target_storage_class | default('gp3-csi') }}"
 mtv_management_storage_maps: *mtv_storage_maps
