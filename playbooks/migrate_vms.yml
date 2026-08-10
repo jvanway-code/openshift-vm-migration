@@ -10,6 +10,9 @@
   tasks:
     - name: Ensure Target Namespace Exists
       kubernetes.core.k8s:
+        host: "{{ openshift_server }}"
+        api_key: "{{ openshift_api_key }}"
+        validate_certs: false  # <-- ADD THIS LINE
         state: present
         definition:
           apiVersion: v1
