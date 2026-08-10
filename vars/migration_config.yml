@@ -1,4 +1,9 @@
 ---
+
+# OpenShift Cluster Authentication (Inherited from AWX Credential)
+openshift_server: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
+openshift_api_key: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
+
 # MTV and Target Namespaces
 mtv_namespace: "openshift-mtv"
 target_namespace: "target-vm-namespace"
