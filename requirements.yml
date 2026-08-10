@@ -1,3 +1,5 @@
 ---
 collections:
-  - name: infra.openshift_virtualization_migration
+  - name: https://github.com/redhat-cop/openshift_virtualization_migration.git
+    type: git
+    version: main
