@@ -8,7 +8,7 @@ openshift_validate_certs: false
 mtv_namespace: "openshift-mtv"
 target_namespace: "{{ target_namespace | default('local-cluster') }}"
 
-# Role Provider Validation Flags (Fixes 'provider' is undefined in mtv_maps.yml)
+# Role Provider Validation Flags
 provider: "vsphere"
 mtv_management_source_target: "vmware"
 mtv_management_destination_target: "host"
@@ -33,11 +33,15 @@ mtv_secrets: &mtv_secrets
 mtv_management_secrets: *mtv_secrets
 
 # VMware Provider Definitions
-mtv_management_vmware_providers:
+mtv_management_providers: &mtv_management_providers
   - name: "vmware"
     namespace: "{{ mtv_namespace }}"
+    type: "vsphere"
     url: "{{ vsphere_url }}"
     secret: "vsphere-credentials"
+  - name: "host"
+    namespace: "{{ mtv_namespace }}"
+    type: "openshift"
 
 # Network Mappings
 mtv_network_maps: &mtv_network_maps
@@ -60,9 +64,9 @@ mtv_storage_maps: &mtv_storage_maps
     destination_provider: "host"
     map:
       - source:
-          name: "{{ vsphere_datastore | default('workload_share') }}"
+          name: "{{ vsphere_datastore | default('workloadshare') }}"
         destination:
-          storageClass: "{{ target_storage_class | default('gp3-csi') }}"
+          storageClass: "{{ target_storage_class | default('ocs-external-storagecluster-ceph-rbd') }}"
 mtv_management_storage_maps: *mtv_storage_maps
 
 # Migration Plans
@@ -77,10 +81,9 @@ mtv_plans: &mtv_plans
     vms: "{{ source_vms }}"
 mtv_management_plans: *mtv_plans
 
-# Migration Executions
-mtv_migrations: &mtv_migrations
-  - plan_name: "vm-migration-plan"
+# Migration Executions (Formatted as a dictionary for mtv_migrate)
+mtv_migrate_migration_request:
+  vm-migration-plan:
     namespace: "{{ mtv_namespace }}"
     wait_for_completion: true
     timeout: 3600
-mtv_management_migrations: *mtv_migrations
