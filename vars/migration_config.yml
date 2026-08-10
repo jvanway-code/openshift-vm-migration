@@ -69,7 +69,7 @@ mtv_storage_maps: &mtv_storage_maps
           storageClass: "{{ target_storage_class | default('ocs-external-storagecluster-ceph-rbd') }}"
 mtv_management_storage_maps: *mtv_storage_maps
 
-# Migration Plans
+# Migration Plans (For mtv_management)
 mtv_plans: &mtv_plans
   - name: "vm-migration-plan"
     namespace: "{{ mtv_namespace }}"
@@ -81,7 +81,7 @@ mtv_plans: &mtv_plans
     vms: "{{ source_vms }}"
 mtv_management_plans: *mtv_plans
 
-# Migration Executions (Strictly matched to role arg_spec)
+# Migration Executions (Strictly schema compliant for mtv_migrate)
 mtv_migrate_migration_request:
   vm-migration-plan:
     plan_name: "vm-migration-plan"
