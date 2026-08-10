@@ -1,11 +1,10 @@
 ---
 collections:
-  # Dependencies from public Ansible Galaxy
   - name: ansible.posix
+    source: https://galaxy.ansible.com
+  - name: ansible.utils
     source: https://galaxy.ansible.com
   - name: kubernetes.core
     source: https://galaxy.ansible.com
-
-  # Red Hat Validated Collection from Automation Hub
   - name: infra.openshift_virtualization_migration
     source: https://console.redhat.com/api/automation-hub/content/validated/
