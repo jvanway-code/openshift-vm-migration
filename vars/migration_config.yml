@@ -8,7 +8,7 @@ openshift_validate_certs: false
 mtv_namespace: "openshift-mtv"
 target_namespace: "{{ target_namespace | default('local-cluster') }}"
 
-# vSphere Connection Details (Injected via AWX VMware Credential & Extra Vars)
+# vSphere Connection Details
 vsphere_url: "{{ vsphere_url }}"
 vsphere_user: "{{ lookup('env', 'VMWARE_USER') | default(vsphere_user | default(''), true) }}"
 vsphere_password: "{{ lookup('env', 'VMWARE_PASSWORD') | default(vsphere_password | default(''), true) }}"
@@ -26,7 +26,7 @@ mtv_management_secrets: *mtv_secrets
 
 # Provider Configurations
 mtv_providers: &mtv_providers
-  - name: "vmware"  # Matches existing provider name in OpenShift cluster
+  - name: "vmware"
     namespace: "{{ mtv_namespace }}"
     type: "vmware"
     url: "{{ vsphere_url }}"
@@ -44,7 +44,7 @@ mtv_network_maps: &mtv_network_maps
     destination_provider: "host"
     map:
       - source:
-          name: "VM Network"  # <-- Adjust to match your vSphere Port Group name
+          name: "{{ vsphere_port_group | default('VM Network') }}"
         destination:
           type: "pod"
 mtv_management_network_maps: *mtv_network_maps
@@ -57,9 +57,9 @@ mtv_storage_maps: &mtv_storage_maps
     destination_provider: "host"
     map:
       - source:
-          name: "datastore1"  # <-- Adjust to match your vSphere Datastore name
+          name: "{{ vsphere_datastore | default('datastore1') }}"
         destination:
-          storageClass: "gp3-csi"  # <-- Adjust to match target StorageClass
+          storageClass: "{{ target_storage_class | default('gp3-csi') }}"
 mtv_management_storage_maps: *mtv_storage_maps
 
 # Migration Plans
@@ -71,8 +71,7 @@ mtv_plans: &mtv_plans
     network_map: "vsphere-network-map"
     storage_map: "vsphere-storage-map"
     target_namespace: "{{ target_namespace }}"
-    vms:
-      - name: "your-vm-name-1"  # <-- Adjust to match your vSphere VM name
+    vms: "{{ source_vms }}"
 mtv_management_plans: *mtv_plans
 
 # Migration Executions
