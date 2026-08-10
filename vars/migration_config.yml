@@ -1,14 +1,19 @@
 ---
-# OpenShift Cluster Authentication (Inherited from AWX Credential)
-openshift_server: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
-openshift_api_key: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
+# Auto-detect Kubeconfig file mounted by AWX
+_kubeconfig_path: "{{ lookup('env', 'K8S_AUTH_KUBECONFIG') | default(lookup('env', 'KUBECONFIG'), true) }}"
+_kubeconfig_data: "{{ (lookup('file', _kubeconfig_path) | from_yaml) if (_kubeconfig_path | length > 0) else {} }}"
+
+# OpenShift Cluster Authentication
+# Checks direct env vars first, falls back to parsing the mounted kubeconfig file
+openshift_server: "{{ lookup('env', 'K8S_AUTH_HOST') | default((_kubeconfig_data.clusters[0].cluster.server if (_kubeconfig_data.clusters is defined) else ''), true) }}"
+openshift_api_key: "{{ lookup('env', 'K8S_AUTH_API_KEY') | default((_kubeconfig_data.users[0].user.token if (_kubeconfig_data.users is defined) else ''), true) }}"
 
 # MTV and Target Namespaces
 mtv_namespace: "openshift-mtv"
-target_namespace: "target-vm-namespace"
+target_namespace: "{{ target_namespace | default('target-vm-namespace') }}"
 
 # vSphere Connection Details
-vsphere_url: "https://<VCENTER_FQDN_OR_IP>/sdk"
+vsphere_url: "https://{{ vsphere_url | default('<VCENTER_FQDN_OR_IP>') }}/sdk"
 vsphere_user: "<VCENTER_USERNAME>"
 vsphere_password: "<VCENTER_PASSWORD>"
 vsphere_insecure_skip_verify: true
@@ -26,7 +31,7 @@ mtv_secrets:
 mtv_providers:
   - name: "vsphere-provider"
     namespace: "{{ mtv_namespace }}"
-    type: "vmware"  # Changed from "vsphere" to "vmware" so the role executes provider creation
+    type: "vmware"
     url: "{{ vsphere_url }}"
     secret: "vsphere-credentials"
   - name: "host"
@@ -43,7 +48,7 @@ mtv_network_maps:
       - source:
           name: "<SOURCE_PORT_GROUP>"
         destination:
-          type: "pod"  # Options: "pod" or "multus"
+          type: "pod"
 
 # Storage Mappings
 mtv_storage_maps:
