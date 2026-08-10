@@ -1,35 +1,32 @@
 ---
-# Auto-detect Kubeconfig file mounted by AWX
-_kubeconfig_path: "{{ lookup('env', 'K8S_AUTH_KUBECONFIG') | default(lookup('env', 'KUBECONFIG'), true) }}"
-_kubeconfig_data: "{{ (lookup('file', _kubeconfig_path) | from_yaml) if (_kubeconfig_path | length > 0) else {} }}"
-
 # OpenShift Cluster Authentication
-# Checks direct env vars first, falls back to parsing the mounted kubeconfig file
-openshift_server: "{{ lookup('env', 'K8S_AUTH_HOST') | default((_kubeconfig_data.clusters[0].cluster.server if (_kubeconfig_data.clusters is defined) else ''), true) }}"
-openshift_api_key: "{{ lookup('env', 'K8S_AUTH_API_KEY') | default((_kubeconfig_data.users[0].user.token if (_kubeconfig_data.users is defined) else ''), true) }}"
+openshift_server: "https://api.cluster-lzq2t.dyn.redhatworkshops.io:6443"
+openshift_api_key: "sha256~Y80SsRcixFvMP6fudLuQ82EDmUErYSmSa_BjoA_Owp8"
+openshift_validate_certs: false
 
 # MTV and Target Namespaces
 mtv_namespace: "openshift-mtv"
-target_namespace: "{{ target_namespace | default('target-vm-namespace') }}"
+target_namespace: "{{ target_namespace | default('local-cluster') }}"
 
 # vSphere Connection Details
-vsphere_url: "https://{{ vsphere_url | default('<VCENTER_FQDN_OR_IP>') }}/sdk"
-vsphere_user: "<VCENTER_USERNAME>"
-vsphere_password: "<VCENTER_PASSWORD>"
+vsphere_url: "https://vcenter.apps.ocpv07.rhdp.net/sdk"
+vsphere_user: "user1"
+vsphere_password: "YOUR_PASSWORD_HERE"
 vsphere_insecure_skip_verify: true
 
-# Secret Definitions for Providers
-mtv_secrets:
+# Secret Definitions
+mtv_secrets: &mtv_secrets
   - name: "vsphere-credentials"
     namespace: "{{ mtv_namespace }}"
     user: "{{ vsphere_user }}"
     password: "{{ vsphere_password }}"
     insecureSkipVerify: "{{ vsphere_insecure_skip_verify | string }}"
     url: "{{ vsphere_url }}"
+mtv_management_secrets: *mtv_secrets
 
 # Provider Configurations
-mtv_providers:
-  - name: "vsphere-provider"
+mtv_providers: &mtv_providers
+  - name: "vmware"  # Matched to provider name in OpenShift
     namespace: "{{ mtv_namespace }}"
     type: "vmware"
     url: "{{ vsphere_url }}"
@@ -37,47 +34,51 @@ mtv_providers:
   - name: "host"
     namespace: "{{ mtv_namespace }}"
     type: "openshift"
+mtv_management_providers: *mtv_providers
 
 # Network Mappings
-mtv_network_maps:
+mtv_network_maps: &mtv_network_maps
   - name: "vsphere-network-map"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "vsphere-provider"
+    source_provider: "vmware"  # Matches provider name above
     destination_provider: "host"
     map:
       - source:
-          name: "<SOURCE_PORT_GROUP>"
+          name: "VM Network"  # Replace with actual vSphere Port Group name
         destination:
           type: "pod"
+mtv_management_network_maps: *mtv_network_maps
 
 # Storage Mappings
-mtv_storage_maps:
+mtv_storage_maps: &mtv_storage_maps
   - name: "vsphere-storage-map"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "vsphere-provider"
+    source_provider: "vmware"  # Matches provider name above
     destination_provider: "host"
     map:
       - source:
-          name: "<SOURCE_DATASTORE>"
+          name: "datastore1"  # Replace with actual vSphere Datastore name
         destination:
-          storageClass: "<TARGET_STORAGE_CLASS>"
+          storageClass: "gp3-csi"  # Replace with target OpenShift StorageClass
+mtv_management_storage_maps: *mtv_storage_maps
 
 # Migration Plans
-mtv_plans:
+mtv_plans: &mtv_plans
   - name: "vm-migration-plan"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "vsphere-provider"
+    source_provider: "vmware"  # Matches provider name above
     destination_provider: "host"
     network_map: "vsphere-network-map"
     storage_map: "vsphere-storage-map"
     target_namespace: "{{ target_namespace }}"
     vms:
-      - name: "<SOURCE_VM_NAME_1>"
-      - name: "<SOURCE_VM_NAME_2>"
+      - name: "your-vm-name-1"  # Replace with actual vSphere VM name
+mtv_management_plans: *mtv_plans
 
 # Migration Executions
-mtv_migrations:
+mtv_migrations: &mtv_migrations
   - plan_name: "vm-migration-plan"
     namespace: "{{ mtv_namespace }}"
     wait_for_completion: true
     timeout: 3600
+mtv_management_migrations: *mtv_migrations
