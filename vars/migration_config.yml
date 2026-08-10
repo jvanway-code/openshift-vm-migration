@@ -1,5 +1,4 @@
 ---
-
 # OpenShift Cluster Authentication (Inherited from AWX Credential)
 openshift_server: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
 openshift_api_key: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
@@ -27,7 +26,7 @@ mtv_secrets:
 mtv_providers:
   - name: "vsphere-provider"
     namespace: "{{ mtv_namespace }}"
-    type: "vsphere"
+    type: "vmware"  # Changed from "vsphere" to "vmware" so the role executes provider creation
     url: "{{ vsphere_url }}"
     secret: "vsphere-credentials"
   - name: "host"
