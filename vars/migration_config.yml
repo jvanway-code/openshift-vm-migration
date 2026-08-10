@@ -81,7 +81,7 @@ mtv_plans: &mtv_plans
     vms: "{{ source_vms }}"
 mtv_management_plans: *mtv_plans
 
-# Migration Executions (Corrected parameters schema)
+# Migration Executions
 mtv_migrate_migration_request:
   vm-migration-plan:
     plan_name: "vm-migration-plan"
