@@ -1,4 +1,3 @@
 ---
 collections:
   - name: infra.openshift_virtualization_migration
-    source: https://console.redhat.com/api/automation-hub/content/validated/
