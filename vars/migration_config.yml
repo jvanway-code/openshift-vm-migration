@@ -24,17 +24,12 @@ mtv_secrets: &mtv_secrets
     url: "{{ vsphere_url }}"
 mtv_management_secrets: *mtv_secrets
 
-# Provider Configurations
-mtv_providers: &mtv_providers
+# VMware Provider Definitions (Uses mtv_management_vmware_providers to avoid variable name collision)
+mtv_management_vmware_providers:
   - name: "vmware"
     namespace: "{{ mtv_namespace }}"
-    type: "vmware"
     url: "{{ vsphere_url }}"
     secret: "vsphere-credentials"
-  - name: "host"
-    namespace: "{{ mtv_namespace }}"
-    type: "openshift"
-mtv_management_providers: *mtv_providers
 
 # Network Mappings
 mtv_network_maps: &mtv_network_maps
