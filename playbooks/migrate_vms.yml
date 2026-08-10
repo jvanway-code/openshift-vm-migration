@@ -4,15 +4,18 @@
   connection: local
   gather_facts: false
 
+  # This forces all internal collection modules to use these credentials & bypass SSL
+  environment:
+    K8S_AUTH_HOST: "{{ openshift_server }}"
+    K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+    K8S_AUTH_VERIFY_SSL: "false"
+
   vars_files:
     - vars/migration_config.yml
 
   tasks:
     - name: Ensure Target Namespace Exists
       kubernetes.core.k8s:
-        host: "{{ openshift_server }}"
-        api_key: "{{ openshift_api_key }}"
-        validate_certs: false  # <-- ADD THIS LINE
         state: present
         definition:
           apiVersion: v1
