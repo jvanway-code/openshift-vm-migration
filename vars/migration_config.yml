@@ -81,9 +81,10 @@ mtv_plans: &mtv_plans
     vms: "{{ source_vms }}"
 mtv_management_plans: *mtv_plans
 
-# Migration Executions (Formatted as a dictionary required by mtv_migrate)
+# Migration Executions (Corrected parameters schema)
 mtv_migrate_migration_request:
   vm-migration-plan:
-    namespace: "{{ mtv_namespace }}"
-    wait_for_completion: true
-    timeout: 3600
+    plan_name: "vm-migration-plan"
+    mtv_namespace: "{{ mtv_namespace }}"
+    start_migration: true
+    verify_migrations_complete: true
