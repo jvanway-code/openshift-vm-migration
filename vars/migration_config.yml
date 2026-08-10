@@ -45,7 +45,7 @@ mtv_management_providers: &mtv_management_providers
 
 # Network Mappings
 mtv_network_maps: &mtv_network_maps
-  - name: "vsphere-network-map"
+  - name: "vmware-host"
     namespace: "{{ mtv_namespace }}"
     source_provider: "vmware"
     destination_provider: "host"
@@ -58,7 +58,7 @@ mtv_management_network_maps: *mtv_network_maps
 
 # Storage Mappings
 mtv_storage_maps: &mtv_storage_maps
-  - name: "vsphere-storage-map"
+  - name: "vmware-host"
     namespace: "{{ mtv_namespace }}"
     source_provider: "vmware"
     destination_provider: "host"
@@ -75,13 +75,13 @@ mtv_plans: &mtv_plans
     namespace: "{{ mtv_namespace }}"
     source_provider: "vmware"
     destination_provider: "host"
-    network_map: "vsphere-network-map"
-    storage_map: "vsphere-storage-map"
+    network_map: "vmware-host"
+    storage_map: "vmware-host"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
 mtv_management_plans: *mtv_plans
 
-# Migration Executions (Formatted as a dictionary for mtv_migrate)
+# Migration Executions (Formatted as a dictionary required by mtv_migrate)
 mtv_migrate_migration_request:
   vm-migration-plan:
     namespace: "{{ mtv_namespace }}"
