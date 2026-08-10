@@ -81,17 +81,16 @@ mtv_plans: &mtv_plans
     vms: "{{ source_vms }}"
 mtv_management_plans: *mtv_plans
 
-# Migration Executions (Strictly schema compliant for mtv_migrate)
+# Migration Executions (Direct plan dictionary schema)
 mtv_migrate_migration_request:
-  vm-migration-plan:
-    plan_name: "vm-migration-plan"
-    mtv_namespace: "{{ mtv_namespace }}"
-    target_namespace: "{{ target_namespace }}"
-    source: "vmware"
-    destination: "host"
-    network_map: "vmware-host"
-    storage_map: "vmware-host"
-    start_migration: true
-    verify_plans_ready: true
-    verify_migrations_complete: true
-    vms: "{{ source_vms }}"
+  plan_name: "vm-migration-plan"
+  mtv_namespace: "{{ mtv_namespace }}"
+  target_namespace: "{{ target_namespace }}"
+  source: "vmware"
+  destination: "host"
+  network_map: "vmware-host"
+  storage_map: "vmware-host"
+  start_migration: true
+  verify_plans_ready: true
+  verify_migrations_complete: true
+  vms: "{{ source_vms }}"
