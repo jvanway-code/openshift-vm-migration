@@ -1,20 +1,20 @@
 ---
-# OpenShift Cluster Authentication
-openshift_server: "https://api.cluster-lzq2t.dyn.redhatworkshops.io:6443"
-openshift_api_key: "sha256~Y80SsRcixFvMP6fudLuQ82EDmUErYSmSa_BjoA_Owp8"
+# OpenShift Cluster Authentication (Dynamic lookups from AWX environment)
+openshift_server: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
+openshift_api_key: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
 openshift_validate_certs: false
 
 # MTV and Target Namespaces
 mtv_namespace: "openshift-mtv"
 target_namespace: "{{ target_namespace | default('local-cluster') }}"
 
-# vSphere Connection Details
-vsphere_url: "https://vcenter.apps.ocpv07.rhdp.net/sdk"
-vsphere_user: "user1"
-vsphere_password: "YOUR_PASSWORD_HERE"
+# vSphere Connection Details (Injected via AWX VMware Credential & Extra Vars)
+vsphere_url: "{{ vsphere_url }}"
+vsphere_user: "{{ lookup('env', 'VMWARE_USER') | default(vsphere_user | default(''), true) }}"
+vsphere_password: "{{ lookup('env', 'VMWARE_PASSWORD') | default(vsphere_password | default(''), true) }}"
 vsphere_insecure_skip_verify: true
 
-# Secret Definitions
+# Secret Definitions for MTV Providers
 mtv_secrets: &mtv_secrets
   - name: "vsphere-credentials"
     namespace: "{{ mtv_namespace }}"
@@ -26,7 +26,7 @@ mtv_management_secrets: *mtv_secrets
 
 # Provider Configurations
 mtv_providers: &mtv_providers
-  - name: "vmware"  # Matched to provider name in OpenShift
+  - name: "vmware"  # Matches existing provider name in OpenShift cluster
     namespace: "{{ mtv_namespace }}"
     type: "vmware"
     url: "{{ vsphere_url }}"
@@ -40,11 +40,11 @@ mtv_management_providers: *mtv_providers
 mtv_network_maps: &mtv_network_maps
   - name: "vsphere-network-map"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "vmware"  # Matches provider name above
+    source_provider: "vmware"
     destination_provider: "host"
     map:
       - source:
-          name: "VM Network"  # Replace with actual vSphere Port Group name
+          name: "VM Network"  # <-- Adjust to match your vSphere Port Group name
         destination:
           type: "pod"
 mtv_management_network_maps: *mtv_network_maps
@@ -53,26 +53,26 @@ mtv_management_network_maps: *mtv_network_maps
 mtv_storage_maps: &mtv_storage_maps
   - name: "vsphere-storage-map"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "vmware"  # Matches provider name above
+    source_provider: "vmware"
     destination_provider: "host"
     map:
       - source:
-          name: "datastore1"  # Replace with actual vSphere Datastore name
+          name: "datastore1"  # <-- Adjust to match your vSphere Datastore name
         destination:
-          storageClass: "gp3-csi"  # Replace with target OpenShift StorageClass
+          storageClass: "gp3-csi"  # <-- Adjust to match target StorageClass
 mtv_management_storage_maps: *mtv_storage_maps
 
 # Migration Plans
 mtv_plans: &mtv_plans
   - name: "vm-migration-plan"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "vmware"  # Matches provider name above
+    source_provider: "vmware"
     destination_provider: "host"
     network_map: "vsphere-network-map"
     storage_map: "vsphere-storage-map"
     target_namespace: "{{ target_namespace }}"
     vms:
-      - name: "your-vm-name-1"  # Replace with actual vSphere VM name
+      - name: "your-vm-name-1"  # <-- Adjust to match your vSphere VM name
 mtv_management_plans: *mtv_plans
 
 # Migration Executions

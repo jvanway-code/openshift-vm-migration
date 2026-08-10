@@ -4,10 +4,10 @@
   connection: local
   gather_facts: false
 
-  # This forces all internal collection modules to use these credentials & bypass SSL
+  # Injects AWX environment variables into every task and role run
   environment:
-    K8S_AUTH_HOST: "{{ openshift_server }}"
-    K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+    K8S_AUTH_HOST: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
+    K8S_AUTH_API_KEY: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
     K8S_AUTH_VERIFY_SSL: "false"
 
   vars_files:
