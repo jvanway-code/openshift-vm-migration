@@ -8,7 +8,7 @@ openshift_validate_certs: false
 mtv_namespace: "openshift-mtv"
 target_namespace: "{{ target_namespace | default('local-cluster') }}"
 
-# Dynamic Plan Name with Timestamp (e.g., vm-migration-plan-20260811-085200)
+# Dynamic Plan Name with Timestamp
 migration_plan_name: "vm-migration-plan-{{ now(fmt='%Y%m%d-%H%M%S') }}"
 
 # Role Provider Validation Flags
@@ -20,10 +20,15 @@ mtv_management_map_storage: true
 mtv_management_map_networks: true
 
 # vSphere Connection Details
-vsphere_url: "{{ vsphere_url }}"
+vsphere_url: "https://vcenter.apps.ocpv07.rhdp.net/sdk"
 vsphere_user: "{{ lookup('env', 'VMWARE_USER') | default(vsphere_user | default(''), true) }}"
 vsphere_password: "{{ lookup('env', 'VMWARE_PASSWORD') | default(vsphere_password | default(''), true) }}"
 vsphere_insecure_skip_verify: true
+
+# Infrastructure Defaults (Overridable if needed)
+vsphere_port_group: "{{ vsphere_port_group | default('segment-migrating-to-ocpvirt') }}"
+vsphere_datastore: "{{ vsphere_datastore | default('workloadshare') }}"
+target_storage_class: "{{ target_storage_class | default('ocs-external-storagecluster-ceph-rbd') }}"
 
 # Secret Definitions for MTV Providers
 mtv_secrets: &mtv_secrets
@@ -54,7 +59,7 @@ mtv_network_maps: &mtv_network_maps
     destination_provider: "host"
     map:
       - source:
-          name: "{{ vsphere_port_group | default('segment-migrating-to-ocpvirt') }}"
+          name: "{{ vsphere_port_group }}"
         destination:
           type: "pod"
 mtv_management_network_maps: *mtv_network_maps
@@ -67,12 +72,12 @@ mtv_storage_maps: &mtv_storage_maps
     destination_provider: "host"
     map:
       - source:
-          name: "{{ vsphere_datastore | default('workloadshare') }}"
+          name: "{{ vsphere_datastore }}"
         destination:
-          storageClass: "{{ target_storage_class | default('ocs-external-storagecluster-ceph-rbd') }}"
+          storageClass: "{{ target_storage_class }}"
 mtv_management_storage_maps: *mtv_storage_maps
 
-# Migration Plans (For mtv_management)
+# Migration Plans (Injects source_vms passed from extra_vars)
 mtv_plans: &mtv_plans
   - name: "{{ migration_plan_name }}"
     namespace: "{{ mtv_namespace }}"
@@ -84,7 +89,7 @@ mtv_plans: &mtv_plans
     vms: "{{ source_vms }}"
 mtv_management_plans: *mtv_plans
 
-# Migration Executions (Direct plan dictionary schema)
+# Migration Executions (Injects source_vms passed from extra_vars)
 mtv_migrate_migration_request:
   plan_name: "{{ migration_plan_name }}"
   mtv_namespace: "{{ mtv_namespace }}"
