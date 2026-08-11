@@ -11,7 +11,7 @@
     K8S_AUTH_VERIFY_SSL: "false"
 
   vars_files:
-    - vars/migration_config.yml
+    - ../vars/migration_config.yml
 
   tasks:
     - name: Ensure Target Namespace Exists
