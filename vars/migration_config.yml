@@ -8,6 +8,9 @@ openshift_validate_certs: false
 mtv_namespace: "openshift-mtv"
 target_namespace: "{{ target_namespace | default('local-cluster') }}"
 
+# Dynamic Plan Name with Timestamp (e.g., vm-migration-plan-20260811-085200)
+migration_plan_name: "vm-migration-plan-{{ now(fmt='%Y%m%d-%H%M%S') }}"
+
 # Role Provider Validation Flags
 provider: "vsphere"
 mtv_management_source_target: "vmware"
@@ -71,7 +74,7 @@ mtv_management_storage_maps: *mtv_storage_maps
 
 # Migration Plans (For mtv_management)
 mtv_plans: &mtv_plans
-  - name: "vm-migration-plan"
+  - name: "{{ migration_plan_name }}"
     namespace: "{{ mtv_namespace }}"
     source_provider: "vmware"
     destination_provider: "host"
@@ -83,7 +86,7 @@ mtv_management_plans: *mtv_plans
 
 # Migration Executions (Direct plan dictionary schema)
 mtv_migrate_migration_request:
-  plan_name: "vm-migration-plan"
+  plan_name: "{{ migration_plan_name }}"
   mtv_namespace: "{{ mtv_namespace }}"
   target_namespace: "{{ target_namespace }}"
   source: "vmware"
