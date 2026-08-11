@@ -13,6 +13,11 @@
   vars_files:
     - ../vars/migration_config.yml
 
+  pre_tasks:
+    - name: Generate unique timestamped migration plan name
+      ansible.builtin.set_fact:
+        migration_plan_name: "vm-migration-plan-{{ now(utc=True, fmt='%Y%m%d-%H%M%S') }}"
+
   tasks:
     - name: Ensure Target Namespace Exists
       kubernetes.core.k8s:
