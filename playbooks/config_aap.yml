@@ -1,0 +1,88 @@
+---
+- name: Automate AAP Setup for Migration Job Template
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    # ------------------------------------------------------------------
+    # AAP Connection Details (Consider using vault or environment vars)
+    # ------------------------------------------------------------------
+    controller_host: "https://aap.yourdomain.com"
+    controller_username: "admin"
+    controller_password: "YourSecurePassword"  # Or use controller_oauthtoken
+    controller_validate_certs: false          # Set to true in production
+
+    # ------------------------------------------------------------------
+    # Resource Configurations
+    # ------------------------------------------------------------------
+    org_name: "Infrastructure"
+    inventory_name: "Migration Host Inventory"
+    
+    # SCM / Project Settings
+    project_name: "System Migration Playbooks"
+    project_scm_url: "https://github.com/your-org/migration-repo.git"
+    project_scm_branch: "main"
+
+    # Credentials (Must exist in AAP or be created prior)
+    machine_credential_name: "Linux Machine Credential"
+    scm_credential_name: ""  # Add Git credential name if private repo
+
+    # Job Template Settings
+    job_template_name: "Execute System Migration"
+    playbook_filename: "migrate.yml"
+    execution_environment_name: "Default execution environment" # Adjust as needed
+
+  tasks:
+    - name: Ensure Organization exists
+      ansible.controller.organization:
+        name: "{{ org_name }}"
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ controller_validate_certs }}"
+
+    - name: Ensure Inventory exists
+      ansible.controller.inventory:
+        name: "{{ inventory_name }}"
+        organization: "{{ org_name }}"
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ controller_validate_certs }}"
+
+    - name: Create Git SCM Project
+      ansible.controller.project:
+        name: "{{ project_name }}"
+        organization: "{{ org_name }}"
+        scm_type: "git"
+        scm_url: "{{ project_scm_url }}"
+        scm_branch: "{{ project_scm_branch }}"
+        credential: "{{ scm_credential_name if scm_credential_name != '' else omit }}"
+        scm_update_on_launch: true
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ controller_validate_certs }}"
+
+    - name: Create Migration Job Template
+      ansible.controller.job_template:
+        name: "{{ job_template_name }}"
+        organization: "{{ org_name }}"
+        project: "{{ project_name }}"
+        playbook: "{{ playbook_filename }}"
+        inventory: "{{ inventory_name }}"
+        execution_environment: "{{ execution_environment_name }}"
+        credentials:
+          - "{{ machine_credential_name }}"
+        ask_extra_vars: true
+        ask_limit_on_launch: true
+        verbosity: 1
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ controller_validate_certs }}"

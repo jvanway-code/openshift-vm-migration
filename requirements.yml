@@ -1,6 +1,9 @@
 ---
 collections:
+  - name: amazon.aws
+  - name: community.postgresql
+  - name: kubernetes.core
   - name: ansible.posix
   - name: ansible.utils
-  - name: kubernetes.core
+  - name: ansible.controller
   - name: infra.openshift_virtualization_migration

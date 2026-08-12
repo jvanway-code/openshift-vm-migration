@@ -1,14 +1,59 @@
 ---
-- name: Deploy AAP 2.6 to OpenShift
+- name: Deploy AAP 2.6 to OpenShift with External RDS Database
   hosts: localhost
   connection: local
   gather_facts: false
+  
   vars:
+    # Cluster Configuration (Passed via extra vars or overridden)
+    openshift_username: "cluster-admin"
+    
+    # AAP & Database Configuration
     aap_namespace: "ansible-automation-platform"
     aap_instance_name: "aap"
     aap_license_manifest: "{{ playbook_dir }}/../manifest.zip"
+    rds_secret_name: "rds-postgres-configuration"
+
+  # Pass OpenShift API token and host automatically to all Kubernetes modules
+  module_defaults:
+    kubernetes.core.k8s:
+      host: "{{ openshift_host }}"
+      api_key: "{{ openshift_api_key | default(omit) }}"
+      validate_certs: false
+    kubernetes.core.k8s_info:
+      host: "{{ openshift_host }}"
+      api_key: "{{ openshift_api_key | default(omit) }}"
+      validate_certs: false
 
   tasks:
+    # -------------------------------------------------------------------------
+    # Pre-check & OpenShift Authentication
+    # -------------------------------------------------------------------------
+    - name: Validate that required extra variables are passed via -e
+      ansible.builtin.assert:
+        that:
+          - openshift_host is defined and openshift_host | length > 0
+          - openshift_password is defined and openshift_password | length > 0
+        fail_msg: >-
+          Missing required extra vars! Please ensure both openshift_host 
+          and openshift_password are passed via -e flags.
+        success_msg: "All required OpenShift extra variables verified."
+
+    - name: Authenticate against OpenShift OAuth to obtain API Key
+      kubernetes.core.k8s_auth:
+        host: "{{ openshift_host }}"
+        username: "{{ openshift_username }}"
+        password: "{{ openshift_password }}"
+        validate_certs: false
+      register: k8s_auth_results
+
+    - name: Set OpenShift API Key Fact
+      ansible.builtin.set_fact:
+        openshift_api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+    # -------------------------------------------------------------------------
+    # Namespace & Operator Installation
+    # -------------------------------------------------------------------------
     - name: Ensure AAP Namespace exists
       kubernetes.core.k8s:
         state: present
@@ -18,7 +63,7 @@
           metadata:
             name: "{{ aap_namespace }}"
 
-    - name: Create Operator Group and Subscription
+    - name: Create Operator Group
       kubernetes.core.k8s:
         state: present
         definition:
@@ -58,6 +103,9 @@
       retries: 30
       delay: 10
 
+    # -------------------------------------------------------------------------
+    # AAP Instance Deployment (Configured for External RDS Database)
+    # -------------------------------------------------------------------------
     - name: Deploy Ansible Automation Platform Instance
       kubernetes.core.k8s:
         state: present
@@ -72,6 +120,7 @@
             controller:
               disabled: false
               replicas: 2
+              postgres_configuration_secret: "{{ rds_secret_name }}"  # <--- Binds to RDS Secret
             eda:
               disabled: true
             hub:
@@ -79,6 +128,9 @@
             lightspeed:
               disabled: true
 
+    # -------------------------------------------------------------------------
+    # Post-Deployment Checks & Configuration
+    # -------------------------------------------------------------------------
     - name: Wait for Gateway Admin Secret to be created
       kubernetes.core.k8s_info:
         api_version: v1
@@ -146,4 +198,9 @@
           - "  URL:      {{ aap_host }}"
           - "  Username: admin"
           - "  Password: {{ aap_password }}"
+          - "  Database: External RDS PostgreSQL                    "
           - "===================================================="
+
+# ansible-playbook playbooks/deploy_aap.yml \
+#   -e "openshift_host=<YOUR_OPENSHIFT_API_URL>" \
+#   -e "openshift_password=<YOUR_OPENSHIFT_ADMIN_PASSWORD>"
