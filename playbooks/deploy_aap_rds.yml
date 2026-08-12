@@ -6,8 +6,8 @@
 
   vars:
     # AWS & Cluster Defaults (override via -e)
-    aws_region: "us-east-1"
-    cluster_identifier: "my-rosa-cluster"
+    aws_region: "us-east-2"
+    cluster_identifier: "f9kh7"
     openshift_username: "cluster-admin"
     
     # RDS Instance Configuration
@@ -25,16 +25,11 @@
     # Target OpenShift Namespace
     aap_namespace: "ansible-automation-platform"
 
-  # Pass credentials automatically to AWS and Kubernetes modules
   module_defaults:
     group/aws:
       region: "{{ aws_region }}"
       access_key: "{{ aws_access_key | default(omit) }}"
       secret_key: "{{ aws_secret_key | default(omit) }}"
-    kubernetes.core.k8s:
-      host: "{{ openshift_host }}"
-      api_key: "{{ openshift_api_key | default(omit) }}"
-      validate_certs: false
 
   tasks:
     # -------------------------------------------------------------------------
@@ -49,21 +44,18 @@
           - openshift_password is defined and openshift_password | length > 0
           - db_master_password is defined and db_master_password | length > 0
           - db_app_password is defined and db_app_password | length > 0
-        fail_msg: >-
-          Missing required extra vars! Ensure aws_access_key, aws_secret_key, 
-          openshift_host, openshift_password, db_master_password, and db_app_password are passed via -e.
-        success_msg: "All required extra variables verified."
+        fail_msg: "Missing required extra vars! Ensure all AWS, OpenShift, and DB password variables are passed via -e."
 
     # -------------------------------------------------------------------------
-    # Phase 1: Discover ROSA Infrastructure
+    # Phase 1: Discover Actual ROSA Cluster VPC
     # -------------------------------------------------------------------------
     - name: Gather VPC details for ROSA cluster
       amazon.aws.ec2_vpc_net_info:
         filters:
-          "tag:Name": "*{{ cluster_identifier }}*"
+          "tag:Name": "*rosa*{{ cluster_identifier }}*"
       register: vpc_info
 
-    - name: Set VPC Facts
+    - name: Set ROSA VPC Facts
       ansible.builtin.set_fact:
         rosa_vpc_id: "{{ vpc_info.vpcs[0].id }}"
         rosa_vpc_cidr: "{{ vpc_info.vpcs[0].cidr_block }}"
@@ -82,13 +74,13 @@
     # -------------------------------------------------------------------------
     # Phase 2: Security Group and Subnet Group Creation
     # -------------------------------------------------------------------------
-    - name: Determine secondary AZ and CIDR dynamically if VPC is Single-AZ
+    - name: Determine secondary AZ and CIDR dynamically if ROSA VPC is Single-AZ
       ansible.builtin.set_fact:
         secondary_az: "{{ (aws_region ~ 'a') if (aws_region ~ 'a') not in existing_azs else (aws_region ~ 'c') }}"
         secondary_cidr: "{{ rosa_vpc_cidr | ansible.utils.ipsubnet(24, 250) }}"
       when: existing_azs | length < 2
 
-    - name: Create secondary subnet in 2nd AZ to satisfy AWS RDS 2-AZ requirement
+    - name: Create secondary subnet in 2nd AZ for RDS 2-AZ requirement
       amazon.aws.ec2_vpc_subnet:
         vpc_id: "{{ rosa_vpc_id }}"
         az: "{{ secondary_az }}"
@@ -104,31 +96,31 @@
         rosa_subnet_ids: "{{ rosa_subnet_ids + [secondary_subnet.subnet.id] }}"
       when: existing_azs | length < 2 and secondary_subnet.subnet is defined
 
-    - name: Create RDS Subnet Group
+    - name: Create RDS Subnet Group in ROSA VPC
       amazon.aws.rds_subnet_group:
         name: "{{ rds_subnet_group_name }}"
-        description: "Subnet group for AAP RDS on ROSA"
+        description: "Subnet group for AAP RDS on ROSA VPC"
         subnets: "{{ rosa_subnet_ids }}"
         state: present
 
-    - name: Create RDS Security Group allowing inbound 5432 from ROSA VPC
+    - name: Create RDS Security Group allowing inbound 5432
       amazon.aws.ec2_security_group:
         name: "{{ rds_sg_name }}"
         description: "Security Group for AAP PostgreSQL RDS"
         vpc_id: "{{ rosa_vpc_id }}"
         rules:
           - proto: tcp
-            ports:
-              - 5432
-            cidr_ip: "{{ rosa_vpc_cidr }}"
-            rule_desc: "Allow PostgreSQL from ROSA VPC"
+            from_port: 5432
+            to_port: 5432
+            cidr_ip: "0.0.0.0/0"
+            rule_desc: "Allow PostgreSQL from all VPC and Pod networks"
         state: present
       register: rds_sg
 
     # -------------------------------------------------------------------------
     # Phase 3: Provision RDS Instance
     # -------------------------------------------------------------------------
-    - name: Provision PostgreSQL RDS Instance
+    - name: Provision PostgreSQL RDS Instance in ROSA VPC
       amazon.aws.rds_instance:
         db_instance_identifier: "{{ rds_instance_id }}"
         engine: postgres
@@ -139,22 +131,18 @@
         master_username: "{{ db_master_user }}"
         master_user_password: "{{ db_master_password }}"
         db_subnet_group_name: "{{ rds_subnet_group_name }}"
-        vpc_security_group_ids:
-          - "{{ rds_sg.group_id }}"
+        vpc_security_group_ids: ["{{ rds_sg.group_id }}"]
         publicly_accessible: false
         multi_az: false
+        apply_immediately: true
         wait: true
         state: present
       register: rds_db
 
-    - name: Display RDS Endpoint Address
-      ansible.builtin.debug:
-        msg: "RDS Instance Endpoint: {{ rds_db.endpoint.address }}"
-
     # -------------------------------------------------------------------------
-    # Phase 4: Authenticate to OpenShift & Initialize PostgreSQL via OpenShift Job
+    # Phase 4: OpenShift Authentication & Database Initialization Job
     # -------------------------------------------------------------------------
-    - name: Authenticate against OpenShift OAuth to obtain API Key
+    - name: Authenticate against OpenShift OAuth
       kubernetes.core.k8s_auth:
         host: "{{ openshift_host }}"
         username: "{{ openshift_username }}"
@@ -162,12 +150,15 @@
         validate_certs: false
       register: k8s_auth_results
 
-    - name: Set OpenShift API Key Fact
+    - name: Set API Token Fact
       ansible.builtin.set_fact:
-        openshift_api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     - name: Ensure Target OpenShift Namespace Exists
       kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
         api_version: v1
         kind: Namespace
         name: "{{ aap_namespace }}"
@@ -175,6 +166,9 @@
 
     - name: Delete existing database initialization job if present
       kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
         state: absent
         api_version: batch/v1
         kind: Job
@@ -183,6 +177,9 @@
 
     - name: Run Database Initialization Job on ROSA
       kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
         state: present
         definition:
           apiVersion: batch/v1
@@ -219,27 +216,51 @@
                           \$\$;
                         "
 
-                        # Create databases for Controller, Hub, and EDA
-                        for db in aap_controller aap_hub aap_eda; do
-                          psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '\$db'" | grep -q 1 || \
-                          psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d postgres -c "CREATE DATABASE \$db OWNER {{ db_app_user }};"
+                        # Create databases for Gateway, Controller, Hub, and EDA
+                        for db in aap_gateway aap_controller aap_hub aap_eda; do
+                          psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1 || \
+                          psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d postgres -c "CREATE DATABASE $db OWNER {{ db_app_user }};"
                         done
 
                         # Create hstore extension on Automation Hub database
                         psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d aap_hub -c "CREATE EXTENSION IF NOT EXISTS hstore;"
                         echo "PostgreSQL initialization completed successfully!"
-
     # -------------------------------------------------------------------------
-    # Phase 5: Create OpenShift Secret for AAP Operator
+    # Phase 5: Create Gateway and Controller Secrets for AAP Operator
     # -------------------------------------------------------------------------
-    - name: Create Database Configuration Secret on OpenShift
+    - name: Create Gateway Database Configuration Secret
       kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
         state: present
         definition:
           apiVersion: v1
           kind: Secret
           metadata:
-            name: rds-postgres-configuration
+            name: rds-gateway-configuration
+            namespace: "{{ aap_namespace }}"
+          type: Opaque
+          stringData:
+            host: "{{ rds_db.endpoint.address }}"
+            port: "5432"
+            database: "aap_gateway"
+            username: "{{ db_app_user }}"
+            password: "{{ db_app_password }}"
+            sslmode: "prefer"
+            type: "unmanaged"
+
+    - name: Create Controller Database Configuration Secret
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: rds-controller-configuration
             namespace: "{{ aap_namespace }}"
           type: Opaque
           stringData:
@@ -250,13 +271,3 @@
             password: "{{ db_app_password }}"
             sslmode: "prefer"
             type: "unmanaged"
-
-# ansible-playbook playbooks/deploy_aap_rds.yml \
-#   -e "aws_access_key=<YOUR_AWS_ACCESS_KEY_ID>" \
-#   -e "aws_secret_key=<YOUR_AWS_SECRET_ACCESS_KEY>" \
-#   -e "aws_region=<YOUR_AWS_REGION>" \
-#   -e "cluster_identifier=<YOUR_ROSA_CLUSTER_NAME>" \
-#   -e "openshift_host=<YOUR_OPENSHIFT_API_URL>" \
-#   -e "openshift_password=<YOUR_OPENSHIFT_ADMIN_PASSWORD>" \
-#   -e "db_master_password=<YOUR_RDS_MASTER_PASSWORD>" \
-#   -e "db_app_password=<YOUR_AAP_APP_DB_PASSWORD>"            

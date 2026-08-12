@@ -117,10 +117,14 @@
             namespace: "{{ aap_namespace }}"
           spec:
             image_pull_policy: IfNotPresent
+            # Binds Platform Gateway to the Gateway RDS Secret
+            database:
+              database_secret: "rds-gateway-configuration"
+            # Binds Automation Controller to the Controller RDS Secret
             controller:
               disabled: false
               replicas: 2
-              postgres_configuration_secret: "{{ rds_secret_name }}"  # <--- Binds to RDS Secret
+              postgres_configuration_secret: "rds-controller-configuration"
             eda:
               disabled: true
             hub:
@@ -200,7 +204,3 @@
           - "  Password: {{ aap_password }}"
           - "  Database: External RDS PostgreSQL                    "
           - "===================================================="
-
-# ansible-playbook playbooks/deploy_aap.yml \
-#   -e "openshift_host=<YOUR_OPENSHIFT_API_URL>" \
-#   -e "openshift_password=<YOUR_OPENSHIFT_ADMIN_PASSWORD>"
