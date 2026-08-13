@@ -62,7 +62,7 @@ Step 2: Provision RDS PostgreSQL & Generate Secrets
 
 Run deploy_aap_rds.yml to provision the RDS database in the ROSA VPC and initialize database credentials:
 
-ansible-playbook playbooks/deploy_aap_rds.yml \
+ansible-playbook playbooks/deploy_rds.yml \
   -e "aws_access_key=<YOUR_AWS_ACCESS_KEY>" \
   -e "aws_secret_key=<YOUR_AWS_SECRET_KEY>" \
   -e "aws_region=us-east-2" \
@@ -78,7 +78,7 @@ Step 3: Deploy AAP 2.6
 
 Once the RDS playbook completes successfully, deploy the AAP operator and instance:
 
-ansible-playbook playbooks/deploy_aap.yml \
+ansible-playbook playbooks/deploy_aap_w_rds.yml \
   -e "openshift_host=https://api.<cluster-name>.<domain>:443" \
   -e "openshift_password=<OPENSHIFT_ADMIN_PASSWORD>"
 
