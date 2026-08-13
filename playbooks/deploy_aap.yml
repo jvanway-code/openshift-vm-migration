@@ -1,5 +1,5 @@
 ---
-- name: Deploy AAP 2.6 to OpenShift with Default In-Cluster PostgreSQL
+- name: Deploy AAP 2.6 to OpenShift with Default In-Cluster PostgreSQL & Custom Certs
   hosts: localhost
   connection: local
   gather_facts: false
@@ -12,6 +12,11 @@
     aap_namespace: "ansible-automation-platform"
     aap_instance_name: "aap"
     aap_license_manifest: "{{ playbook_dir }}/../manifest.zip"
+
+    # Certificate Paths (Optional: Checked at runtime)
+    custom_ca_cert_file: "{{ playbook_dir }}/../certs/internal-ca.crt"
+    custom_tls_cert_file: "{{ playbook_dir }}/../certs/tls.crt"
+    custom_tls_key_file: "{{ playbook_dir }}/../certs/tls.key"
 
   tasks:
     # -------------------------------------------------------------------------
@@ -40,7 +45,7 @@
         k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     # -------------------------------------------------------------------------
-    # Namespace & Operator Installation
+    # Namespace & Certificate Secrets Provisioning
     # -------------------------------------------------------------------------
     - name: Ensure AAP Namespace exists
       kubernetes.core.k8s:
@@ -54,6 +59,57 @@
           metadata:
             name: "{{ aap_namespace }}"
 
+    - name: Check for internal CA certificate file
+      ansible.builtin.stat:
+        path: "{{ custom_ca_cert_file }}"
+      register: ca_cert_stat
+
+    - name: Create Internal CA Trust Bundle Secret in OpenShift
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: aap-custom-ca-secret
+            namespace: "{{ aap_namespace }}"
+          type: Opaque
+          stringData:
+            bundle-ca.crt: "{{ lookup('file', custom_ca_cert_file) }}"
+      when: ca_cert_stat.stat.exists
+
+    - name: Check for custom Route TLS cert and key files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ custom_tls_cert_file }}"
+        - "{{ custom_tls_key_file }}"
+      register: tls_cert_stats
+
+    - name: Create Route Custom TLS Secret in OpenShift
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: aap-route-tls-secret
+            namespace: "{{ aap_namespace }}"
+          type: kubernetes.io/tls
+          stringData:
+            tls.crt: "{{ lookup('file', custom_tls_cert_file) }}"
+            tls.key: "{{ lookup('file', custom_tls_key_file) }}"
+      when: tls_cert_stats.results | map(attribute='stat.exists') | min
+
+    # -------------------------------------------------------------------------
+    # Operator Installation
+    # -------------------------------------------------------------------------
     - name: Create Operator Group
       kubernetes.core.k8s:
         host: "{{ openshift_host }}"
@@ -120,8 +176,10 @@
             namespace: "{{ aap_namespace }}"
           spec:
             image_pull_policy: IfNotPresent
-            # Omitting postgres_configuration_secret causes the operator
-            # to automatically deploy and manage the aap-postgres-15-0 pod
+            # Binds internal CA certificate secret if present
+            bundle_cacert_secret: "{{ 'aap-custom-ca-secret' if ca_cert_stat.stat.exists else omit }}"
+            # Binds custom Web UI TLS secret if present
+            route_tls_secret: "{{ 'aap-route-tls-secret' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else omit }}"
             controller:
               disabled: false
               replicas: 1
@@ -209,4 +267,6 @@
           - "  Username: admin"
           - "  Password: {{ aap_password }}"
           - "  Database: In-Cluster PostgreSQL (aap-postgres-15-0)  "
+          - "  Internal CA Bundle: {{ 'Applied (aap-custom-ca-secret)' if ca_cert_stat.stat.exists else 'None' }}"
+          - "  Route TLS Secret:   {{ 'Applied (aap-route-tls-secret)' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else 'Default OpenShift Ingress' }}"
           - "===================================================="
