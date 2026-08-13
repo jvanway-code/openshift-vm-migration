@@ -1,5 +1,5 @@
 ---
-- name: Deploy AAP 2.6 to OpenShift with Default In-Cluster PostgreSQL
+- name: Deploy AAP 2.6 to OpenShift with External RDS Database
   hosts: localhost
   connection: local
   gather_facts: false
@@ -8,10 +8,22 @@
     # Cluster Configuration (Passed via extra vars or overridden)
     openshift_username: "cluster-admin"
     
-    # AAP Configuration
+    # AAP & Database Configuration
     aap_namespace: "ansible-automation-platform"
     aap_instance_name: "aap"
     aap_license_manifest: "{{ playbook_dir }}/../manifest.zip"
+    rds_secret_name: "rds-postgres-configuration"
+
+  # Pass OpenShift API token and host automatically to all Kubernetes modules
+  module_defaults:
+    kubernetes.core.k8s:
+      host: "{{ openshift_host }}"
+      api_key: "{{ openshift_api_key | default(omit) }}"
+      validate_certs: false
+    kubernetes.core.k8s_info:
+      host: "{{ openshift_host }}"
+      api_key: "{{ openshift_api_key | default(omit) }}"
+      validate_certs: false
 
   tasks:
     # -------------------------------------------------------------------------
@@ -37,16 +49,13 @@
 
     - name: Set OpenShift API Key Fact
       ansible.builtin.set_fact:
-        k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        openshift_api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     # -------------------------------------------------------------------------
     # Namespace & Operator Installation
     # -------------------------------------------------------------------------
     - name: Ensure AAP Namespace exists
       kubernetes.core.k8s:
-        host: "{{ openshift_host }}"
-        api_key: "{{ k8s_token }}"
-        validate_certs: false
         state: present
         definition:
           apiVersion: v1
@@ -56,9 +65,6 @@
 
     - name: Create Operator Group
       kubernetes.core.k8s:
-        host: "{{ openshift_host }}"
-        api_key: "{{ k8s_token }}"
-        validate_certs: false
         state: present
         definition:
           apiVersion: operators.coreos.com/v1
@@ -72,9 +78,6 @@
 
     - name: Create AAP 2.6 Subscription
       kubernetes.core.k8s:
-        host: "{{ openshift_host }}"
-        api_key: "{{ k8s_token }}"
-        validate_certs: false
         state: present
         definition:
           apiVersion: operators.coreos.com/v1alpha1
@@ -91,9 +94,6 @@
 
     - name: Wait for AAP Operator CSV to succeed
       kubernetes.core.k8s_info:
-        host: "{{ openshift_host }}"
-        api_key: "{{ k8s_token }}"
-        validate_certs: false
         api_version: operators.coreos.com/v1alpha1
         kind: ClusterServiceVersion
         namespace: "{{ aap_namespace }}"
@@ -104,13 +104,10 @@
       delay: 10
 
     # -------------------------------------------------------------------------
-    # AAP Instance Deployment (Default In-Cluster Managed PostgreSQL Pod)
+    # AAP Instance Deployment (Configured for External RDS Database)
     # -------------------------------------------------------------------------
     - name: Deploy Ansible Automation Platform Instance
       kubernetes.core.k8s:
-        host: "{{ openshift_host }}"
-        api_key: "{{ k8s_token }}"
-        validate_certs: false
         state: present
         definition:
           apiVersion: aap.ansible.com/v1alpha1
@@ -120,11 +117,14 @@
             namespace: "{{ aap_namespace }}"
           spec:
             image_pull_policy: IfNotPresent
-            # Omitting postgres_configuration_secret causes the operator
-            # to automatically deploy and manage the aap-postgres-15-0 pod
+            # Binds Platform Gateway to the Gateway RDS Secret
+            database:
+              database_secret: "rds-gateway-configuration"
+            # Binds Automation Controller to the Controller RDS Secret
             controller:
               disabled: false
-              replicas: 1
+              replicas: 2
+              postgres_configuration_secret: "rds-controller-configuration"
             eda:
               disabled: true
             hub:
@@ -137,16 +137,13 @@
     # -------------------------------------------------------------------------
     - name: Wait for Gateway Admin Secret to be created
       kubernetes.core.k8s_info:
-        host: "{{ openshift_host }}"
-        api_key: "{{ k8s_token }}"
-        validate_certs: false
         api_version: v1
         kind: Secret
         name: aap-admin-password
         namespace: "{{ aap_namespace }}"
       register: gateway_secret
       until: gateway_secret.resources | length > 0
-      retries: 40
+      retries: 30
       delay: 10
 
     - name: Extract Gateway Admin Password
@@ -155,9 +152,6 @@
 
     - name: Get AAP Route URL
       kubernetes.core.k8s_info:
-        host: "{{ openshift_host }}"
-        api_key: "{{ k8s_token }}"
-        validate_certs: false
         api_version: route.openshift.io/v1
         kind: Route
         name: aap
@@ -208,5 +202,5 @@
           - "  URL:      {{ aap_host }}"
           - "  Username: admin"
           - "  Password: {{ aap_password }}"
-          - "  Database: In-Cluster PostgreSQL (aap-postgres-15-0)  "
+          - "  Database: External RDS PostgreSQL                    "
           - "===================================================="
