@@ -1,19 +1,19 @@
 ---
-- name: Deploy AAP 2.6 to OpenShift with External RDS Database & Custom Certs
+- name: Deploy AAP 2.7 to OpenShift with External RDS Database & Custom Certs
   hosts: localhost
   connection: local
   gather_facts: false
   
   vars:
-    # Cluster Configuration (Passed via extra vars or overridden)
+    # Cluster Configuration Defaults (Override via -e)
     openshift_username: "cluster-admin"
     
-    # AAP Configuration
+    # AAP Instance & Namespace Configuration
     aap_namespace: "ansible-automation-platform"
     aap_instance_name: "aap"
     aap_license_manifest: "{{ playbook_dir }}/../manifest.zip"
 
-    # Certificate Paths (Optional: Checked at runtime)
+    # Optional Certificate File Paths (Checked at runtime)
     custom_ca_cert_file: "{{ playbook_dir }}/../certs/internal-ca.crt"
     custom_tls_cert_file: "{{ playbook_dir }}/../certs/tls.crt"
     custom_tls_key_file: "{{ playbook_dir }}/../certs/tls.key"
@@ -126,7 +126,7 @@
             targetNamespaces:
               - "{{ aap_namespace }}"
 
-    - name: Create AAP 2.6 Subscription
+    - name: Create AAP 2.7 Subscription
       kubernetes.core.k8s:
         host: "{{ openshift_host }}"
         api_key: "{{ k8s_token }}"
@@ -139,7 +139,7 @@
             name: ansible-automation-platform
             namespace: "{{ aap_namespace }}"
           spec:
-            channel: 'stable-2.6'
+            channel: 'stable-2.7'
             installPlanApproval: Automatic
             name: ansible-automation-platform-operator
             source: redhat-operators
@@ -175,24 +175,56 @@
             name: "{{ aap_instance_name }}"
             namespace: "{{ aap_namespace }}"
           spec:
+            # REQUIRED AT TOP-LEVEL: Suppresses internal aap-postgres-15-0 StatefulSet
+            postgres_configuration_secret: "rds-gateway-configuration"
+            
+            # Custom FQDN (omitted if -e custom_hostname is not passed)
+            route_host: "{{ custom_hostname | default(omit) }}"
+            
             image_pull_policy: IfNotPresent
-            # Binds internal CA certificate secret if present
             bundle_cacert_secret: "{{ 'aap-custom-ca-secret' if ca_cert_stat.stat.exists else omit }}"
-            # Binds custom Web UI TLS secret if present
             route_tls_secret: "{{ 'aap-route-tls-secret' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else omit }}"
-            # Binds Platform Gateway to the Gateway RDS Secret
+            
+            # Platform Gateway Database Secret
             database:
               database_secret: "rds-gateway-configuration"
-            # Binds Automation Controller to the Controller RDS Secret
+            
+            # Controller Database Secret
             controller:
               disabled: false
               replicas: 2
               postgres_configuration_secret: "rds-controller-configuration"
+            
+            # Automation Hub Database Secret & Single-Node Pod Colocation (Solves EBS Multi-Attach)
+            hub:
+              disabled: false
+              postgres_configuration_secret: "rds-hub-configuration"
+              file_storage_access_mode: ReadWriteOnce
+              affinity:
+                podAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    - labelSelector:
+                        matchExpressions:
+                          - key: app.kubernetes.io/part-of
+                            operator: In
+                            values:
+                              - automationhub
+                      topologyKey: kubernetes.io/hostname
+              worker:
+                replicas: 1
+              content:
+                replicas: 1
+              api:
+                replicas: 1
+
+            # Disable unused components & prevent internal metrics DB
             eda:
               disabled: true
-            hub:
-              disabled: true
+
             lightspeed:
+              disabled: true
+
+            metrics:
               disabled: true
 
     # -------------------------------------------------------------------------
@@ -209,12 +241,12 @@
         namespace: "{{ aap_namespace }}"
       register: gateway_secret
       until: gateway_secret.resources | length > 0
-      retries: 30
+      retries: 40
       delay: 10
 
     - name: Extract Gateway Admin Password
       ansible.builtin.set_fact:
-        aap_password: "{{ gateway_secret.resources[0].data.password | b64decode }}"
+        aap_admin_password: "{{ gateway_secret.resources[0].data.password | b64decode }}"
 
     - name: Get AAP Route URL
       kubernetes.core.k8s_info:
@@ -230,13 +262,13 @@
       retries: 30
       delay: 5
 
-    - name: Set AAP Host Fact
+    - name: Set AAP URL Fact
       ansible.builtin.set_fact:
-        aap_host: "https://{{ aap_route.resources[0].spec.host }}"
+        aap_url: "https://{{ aap_route.resources[0].spec.host }}"
 
     - name: Wait for AAP Web Interface to respond
       ansible.builtin.uri:
-        url: "{{ aap_host }}/api/controller/v2/ping/"
+        url: "{{ aap_url }}/api/controller/v2/ping/"
         method: GET
         status_code: [200]
         validate_certs: false
@@ -251,27 +283,30 @@
       register: manifest_stat
 
     - name: Apply Subscription License Manifest
-      ansible.builtin.include_role:
-        name: infra.controller_configuration.license
-      vars:
-        controller_hostname: "{{ aap_host }}"
-        controller_username: "admin"
-        controller_password: "{{ aap_password }}"
-        controller_validate_certs: false
-        controller_license:
-          manifest_file: "{{ aap_license_manifest }}"
+      ansible.builtin.uri:
+        url: "{{ aap_url }}/api/controller/v2/config/"
+        method: POST
+        user: "admin"
+        password: "{{ aap_admin_password }}"
+        force_basic_auth: true
+        body_format: json
+        body:
+          eula_accepted: true
+          manifest: "{{ lookup('file', aap_license_manifest) | b64encode }}"
+        status_code: [200, 201]
+        validate_certs: false
       when: manifest_stat.stat.exists
 
     - name: Display AAP Access Credentials
       ansible.builtin.debug:
         msg:
           - "===================================================="
-          - "  AAP 2.6 Deployment & Licensing Complete!           "
+          - "  AAP 2.7 Deployment & Licensing Complete!           "
           - "===================================================="
-          - "  URL:      {{ aap_host }}"
+          - "  URL:      {{ aap_url }}"
           - "  Username: admin"
-          - "  Password: {{ aap_password }}"
-          - "  Database: External RDS PostgreSQL                    "
+          - "  Password: {{ aap_admin_password }}"
+          - "  Database: External AWS RDS PostgreSQL               "
           - "  Internal CA Bundle: {{ 'Applied (aap-custom-ca-secret)' if ca_cert_stat.stat.exists else 'None' }}"
           - "  Route TLS Secret:   {{ 'Applied (aap-route-tls-secret)' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else 'Default OpenShift Ingress' }}"
           - "===================================================="
