@@ -5,5 +5,5 @@ collections:
   - name: kubernetes.core
   - name: ansible.posix
   - name: ansible.utils
-  - name: ansible.controller
   - name: infra.openshift_virtualization_migration
+  - name: awx.awx

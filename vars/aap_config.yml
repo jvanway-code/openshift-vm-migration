@@ -1,0 +1,76 @@
+---
+# ==============================================================================
+# AAP Predefined Resources (Projects, Credentials, Job Templates)
+# File: vars/aap_config.yml
+# ==============================================================================
+
+aap_organization: "Default"
+
+# ------------------------------------------------------------------------------
+# Credentials
+# ------------------------------------------------------------------------------
+credentials:
+  - name: "vCenter Credentials"
+    description: "Source VMware vCenter Credentials for VM Migration"
+    organization: "{{ aap_organization }}"
+    credential_type: "VMware vCenter"
+    inputs:
+      host: "vcenter.apps.ocpv01.rhdp.net"
+      username: "{{ vault_vcenter_username }}"
+      password: "{{ vault_vcenter_password }}"
+    state: "present"
+
+  - name: "OpenShift Cluster API Credential"
+    description: "Bearer Token for target OpenShift Virtualization Cluster"
+    organization: "{{ aap_organization }}"
+    credential_type: "OpenShift or Kubernetes API Bearer Token"
+    inputs:
+      host: "{{ openshift_host }}"
+      bearer_token: "{{ k8s_token }}"
+    state: "present"
+
+  - name: "GitHub Deploy Key Credential"
+    description: "SSH Private Key for GitHub SCM Repositories"
+    organization: "{{ aap_organization }}"
+    credential_type: "Source Control"
+    inputs:
+      ssh_key_data: "{{ vault_github_deploy_key_private }}"
+    state: "present"
+
+# ------------------------------------------------------------------------------
+# Projects
+# ------------------------------------------------------------------------------
+projects:
+  - name: "tt-openshift-virt"
+    description: "Git repository containing VM migration playbooks"
+    organization: "{{ aap_organization }}"
+    scm_type: "git"
+    scm_url: "git@github.com:jvanway-redhat/openshift-vm-migration.git"
+    scm_credential: "GitHub Deploy Key Credential"
+    scm_branch: "main"
+    state: "present"
+
+# ------------------------------------------------------------------------------
+# Inventories & Sources
+# ------------------------------------------------------------------------------
+inventories:
+  - name: "VM Migration Inventory"
+    description: "Dynamic inventory synced from Git SCM source path"
+    organization: "{{ aap_organization }}"
+    source_project: "tt-openshift-virt"
+    source_path: "inventories/hosts.yml"
+    state: "present"
+
+# ------------------------------------------------------------------------------
+# Job Templates
+# ------------------------------------------------------------------------------
+job_templates:
+  - name: "01 - Execute OpenShift VM Migration"
+    organization: "{{ aap_organization }}"
+    project: "tt-openshift-virt"
+    inventory: "VM Migration Inventory"
+    playbook: "playbooks/migrate_vms.yml"
+    credentials:
+      - "vCenter Credentials"
+      - "OpenShift Cluster API Credential"
+    state: "present"
