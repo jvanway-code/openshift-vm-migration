@@ -20,6 +20,14 @@ credentials:
       token: "{{ vault_rh_offline_token }}"
     state: "present"
 
+  - name: "Ansible Galaxy Credential"
+    description: "Public Ansible Galaxy server for community collections"
+    organization: "{{ aap_organization }}"
+    credential_type: "Ansible Galaxy/Automation Hub API Token"
+    inputs:
+      url: "https://galaxy.ansible.com/"
+    state: "present"
+
   - name: "vCenter Credentials"
     description: "Source VMware vCenter Credentials for VM Migration"
     organization: "{{ aap_organization }}"
@@ -48,12 +56,13 @@ credentials:
     state: "present"
 
 # ------------------------------------------------------------------------------
-# Organizations (Attaches Galaxy/Automation Hub Credentials)
+# Organizations (Attaches BOTH Automation Hub AND Public Galaxy)
 # ------------------------------------------------------------------------------
 organizations:
   - name: "{{ aap_organization }}"
     galaxy_credentials:
       - "Red Hat Automation Hub Credential"
+      - "Ansible Galaxy Credential"
     state: "present"
 
 # ------------------------------------------------------------------------------
