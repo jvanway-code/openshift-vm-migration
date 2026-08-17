@@ -1,8 +1,9 @@
 ---
 - name: Execute OpenShift Virtualization VM Migration via Roles
-  hosts: localhost
+  hosts: all
   connection: local
   gather_facts: false
+  run_once: true
 
   # Injects AWX environment variables into every task and role run
   environment:
@@ -14,12 +15,11 @@
     - ../vars/migration_config.yml
 
   pre_tasks:
-    - name: Build source_vms list from inventory limit or active inventory
+    - name: Build source_vms list from selected inventory hosts
       ansible.builtin.set_fact:
         source_vms: >-
-          {% set target_pattern = ansible_limit if (ansible_limit is defined and ansible_limit | length > 0) else 'all' %}
           {% set vm_list = [] %}
-          {% for h in query('inventory_hostnames', target_pattern) %}
+          {% for h in ansible_play_batch %}
             {% if h not in ['localhost', '127.0.0.1'] %}
               {% set _ = vm_list.append({'name': h}) %}
             {% endif %}
@@ -31,7 +31,7 @@
         that:
           - source_vms is defined
           - source_vms | length > 0
-        fail_msg: "No valid VMs selected! Please specify a valid host or limit (e.g. --limit database-user1,winweb01-user1)."
+        fail_msg: "No valid VMs selected! Select target VMs or specify a limit in AAP."
         success_msg: "Targeting {{ source_vms | length }} VM(s) for migration: {{ source_vms | map(attribute='name') | list }}"
 
     - name: Generate unique timestamped migration plan name
