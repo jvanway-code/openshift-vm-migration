@@ -14,6 +14,26 @@
     - ../vars/migration_config.yml
 
   pre_tasks:
+    - name: Build source_vms list from inventory limit or active inventory
+      ansible.builtin.set_fact:
+        source_vms: >-
+          {% set target_pattern = ansible_limit if (ansible_limit is defined and ansible_limit | length > 0) else 'all' %}
+          {% set vm_list = [] %}
+          {% for h in query('inventory_hostnames', target_pattern) %}
+            {% if h not in ['localhost', '127.0.0.1'] %}
+              {% set _ = vm_list.append({'name': h}) %}
+            {% endif %}
+          {% endfor %}
+          {{ vm_list }}
+
+    - name: Validate that target VMs were resolved
+      ansible.builtin.assert:
+        that:
+          - source_vms is defined
+          - source_vms | length > 0
+        fail_msg: "No valid VMs selected! Please specify a valid host or limit (e.g. --limit database-user1,winweb01-user1)."
+        success_msg: "Targeting {{ source_vms | length }} VM(s) for migration: {{ source_vms | map(attribute='name') | list }}"
+
     - name: Generate unique timestamped migration plan name
       ansible.builtin.set_fact:
         migration_plan_name: "vm-migration-plan-{{ now(utc=True, fmt='%Y%m%d-%H%M%S') }}"
