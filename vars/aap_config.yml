@@ -88,8 +88,13 @@ inventories:
     source: "vmware"
     credential: "vCenter Credentials"
     source_vars:
+      plugin: community.vmware.vmware_vm_inventory
       validate_certs: false
-      with_tags: true
+      with_tags: false
+      strict: false
+      hostnames:
+        - name
+        - config.name
     state: "present"
 
 # ------------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 ---
-- name: Deploy AAP 2.7 to OpenShift with Default In-Cluster PostgreSQL & Custom Certs
+- name: Deploy AAP 2.6 to OpenShift with Default In-Cluster PostgreSQL & Custom Certs
   hosts: localhost
   connection: local
   gather_facts: false
@@ -126,7 +126,7 @@
             targetNamespaces:
               - "{{ aap_namespace }}"
 
-    - name: Create AAP 2.7 Subscription
+    - name: Create AAP 2.6 Subscription
       kubernetes.core.k8s:
         host: "{{ openshift_host }}"
         api_key: "{{ k8s_token }}"
@@ -139,7 +139,7 @@
             name: ansible-automation-platform
             namespace: "{{ aap_namespace }}"
           spec:
-            channel: 'stable-2.7'
+            channel: 'stable-2.6'
             installPlanApproval: Automatic
             name: ansible-automation-platform-operator
             source: redhat-operators
@@ -292,7 +292,7 @@
       ansible.builtin.debug:
         msg:
           - "===================================================="
-          - "  AAP 2.7 Deployment & Licensing Complete!           "
+          - "  AAP 2.6 Deployment & Licensing Complete!           "
           - "===================================================="
           - "  URL:      {{ aap_url }}"
           - "  Username: admin"

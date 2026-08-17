@@ -13,13 +13,13 @@
 
   vars:
     aap_namespace: "ansible-automation-platform"
-    openshift_host: "https://api.rosa-4k6q8.oi90.p3.openshiftapps.com:443"
+    openshift_host: "https://api.cluster-gcnhb.dyn.redhatworkshops.io:6443"
 
   tasks:
     # -------------------------------------------------------------------------
     # 1. Fetch Cluster Auth & Target AAP Credentials
     # -------------------------------------------------------------------------
-    - name: Authenticate against ROSA OpenShift Cluster
+    - name: Authenticate against OpenShift Cluster
       kubernetes.core.k8s_auth:
         host: "{{ openshift_host }}"
         username: "{{ vault_openshift_username }}"
@@ -54,7 +54,7 @@
     - name: Set Connection Facts
       ansible.builtin.set_fact:
         aap_admin_password: "{{ (gateway_secret.resources[0].data.password | b64decode) if (gateway_secret.resources | default([]) | length > 0) else vault_openshift_password }}"
-        aap_url: "{{ ('https://' ~ aap_route.resources[0].spec.host) if (aap_route.resources | default([]) | length > 0) else 'https://aap-ansible-automation-platform.apps.rosa.rosa-4k6q8.oi90.p3.openshiftapps.com' }}"
+        aap_url: "{{ ('https://' ~ aap_route.resources[0].spec.host) if (aap_route.resources | default([]) | length > 0) else 'https://aap-ansible-automation-platform.apps.cluster-gcnhb.dyn.redhatworkshops.io' }}"
         k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     # -------------------------------------------------------------------------
@@ -140,6 +140,7 @@
             inventory: "{{ item.name }}"
             wait: true
           loop: "{{ inventories | default([]) }}"
+          ignore_errors: true
 
         - name: Create job templates from configuration
           ansible.controller.job_template:
