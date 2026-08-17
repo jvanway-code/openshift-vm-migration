@@ -13,7 +13,7 @@
 
   vars:
     aap_namespace: "ansible-automation-platform"
-    openshift_host: "https://api.cluster-gcnhb.dyn.redhatworkshops.io:6443"
+    openshift_host: "https://api.rosa-4k6q8.oi90.p3.openshiftapps.com:443"
 
   tasks:
     # -------------------------------------------------------------------------
