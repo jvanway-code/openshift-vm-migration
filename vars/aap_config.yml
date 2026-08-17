@@ -56,7 +56,7 @@ credentials:
     state: "present"
 
 # ------------------------------------------------------------------------------
-# Organizations (Attaches BOTH Automation Hub AND Public Galaxy)
+# Organizations
 # ------------------------------------------------------------------------------
 organizations:
   - name: "{{ aap_organization }}"
@@ -79,14 +79,17 @@ projects:
     state: "present"
 
 # ------------------------------------------------------------------------------
-# Inventories & Sources
+# Inventories & VMware Dynamic Sources
 # ------------------------------------------------------------------------------
 inventories:
   - name: "VM Migration Inventory"
-    description: "Dynamic inventory synced from Git SCM source path"
+    description: "Dynamic inventory synced directly from VMware vCenter"
     organization: "{{ aap_organization }}"
-    source_project: "tt-openshift-virt"
-    source_path: "inventories/hosts.yml"
+    source: "vmware"
+    credential: "vCenter Credentials"
+    source_vars: |
+      validate_certs: false
+      with_tags: true
     state: "present"
 
 # ------------------------------------------------------------------------------
