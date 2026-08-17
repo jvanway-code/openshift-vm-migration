@@ -112,14 +112,21 @@
             state: "{{ item.state | default('present') }}"
           loop: "{{ inventories | default([]) }}"
 
+        - name: Remove Existing Inventory Sources to Clear Stale Attributes
+          ansible.controller.inventory_source:
+            name: "{{ item.name }} Source"
+            inventory: "{{ item.name }}"
+            state: "absent"
+          loop: "{{ inventories | default([]) }}"
+
         - name: Link Inventory Sources
           ansible.controller.inventory_source:
             name: "{{ item.name }} Source"
             inventory: "{{ item.name }}"
             source: "{{ item.source | default('vmware') }}"
             credential: "{{ item.credential | default(omit) }}"
-            source_project: "{{ item.source_project | default(omit) }}"
-            source_path: "{{ item.source_path | default(omit) }}"
+            source_project: "{{ item.source_project if (item.source | default('vmware') == 'scm') else omit }}"
+            source_path: "{{ item.source_path if (item.source | default('vmware') == 'scm') else omit }}"
             source_vars: "{{ item.source_vars | default(omit) }}"
             overwrite: "{{ item.overwrite | default(true) }}"
             overwrite_vars: "{{ item.overwrite_vars | default(true) }}"
