@@ -87,7 +87,7 @@ inventories:
     organization: "{{ aap_organization }}"
     source: "vmware"
     credential: "vCenter Credentials"
-    source_vars: |
+    source_vars:
       validate_certs: false
       with_tags: true
     state: "present"
