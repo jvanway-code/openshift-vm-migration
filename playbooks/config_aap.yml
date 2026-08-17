@@ -78,6 +78,13 @@
           loop: "{{ credentials | default([]) }}"
           no_log: true
 
+        - name: Associate Galaxy Credentials with Organization
+          ansible.controller.organization:
+            name: "{{ item.name }}"
+            galaxy_credentials: "{{ item.galaxy_credentials | default(omit) }}"
+            state: "{{ item.state | default('present') }}"
+          loop: "{{ organizations | default([]) }}"
+
         - name: Create projects in AAP
           ansible.controller.project:
             name: "{{ item.name }}"
