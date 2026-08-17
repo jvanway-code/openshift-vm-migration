@@ -17,14 +17,12 @@
   pre_tasks:
     - name: Build source_vms list from selected inventory hosts
       ansible.builtin.set_fact:
-        source_vms: >-
-          {% set vm_list = [] %}
-          {% for h in ansible_play_batch %}
-            {% if h not in ['localhost', '127.0.0.1'] %}
-              {% set _ = vm_list.append({'name': h}) %}
-            {% endif %}
+        source_vms: "{{ raw_vms_list | from_yaml }}"
+      vars:
+        raw_vms_list: |
+          {% for h in ansible_play_batch if h not in ['localhost', '127.0.0.1'] %}
+          - name: "{{ h }}"
           {% endfor %}
-          {{ vm_list }}
 
     - name: Validate that target VMs were resolved
       ansible.builtin.assert:
