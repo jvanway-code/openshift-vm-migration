@@ -5,6 +5,7 @@ collections:
   - name: kubernetes.core
   - name: ansible.posix
   - name: ansible.utils
+  - name: ansible.controller
   - name: awx.awx
   - name: https://github.com/redhat-cop/openshift_virtualization_migration.git
     type: git

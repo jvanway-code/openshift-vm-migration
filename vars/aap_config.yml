@@ -15,8 +15,8 @@ credentials:
     organization: "{{ aap_organization }}"
     credential_type: "Ansible Galaxy/Automation Hub API Token"
     inputs:
-      url: "https://console.redhat.com/api/automation-hub/content/published/"
-      auth_url: "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token"
+      url: "{{ vault_automation_hub_url }}"
+      auth_url: "{{ vault_automation_hub_auth_url }}"
       token: "{{ vault_rh_offline_token }}"
     state: "present"
 
@@ -25,7 +25,7 @@ credentials:
     organization: "{{ aap_organization }}"
     credential_type: "Ansible Galaxy/Automation Hub API Token"
     inputs:
-      url: "https://galaxy.ansible.com/"
+      url: "{{ vault_galaxy_url }}"
     state: "present"
 
   - name: "vCenter Credentials"
@@ -33,7 +33,7 @@ credentials:
     organization: "{{ aap_organization }}"
     credential_type: "VMware vCenter"
     inputs:
-      host: "vcenter.apps.ocpv01.rhdp.net"
+      host: "{{ vault_vcenter_host }}"
       username: "{{ vault_vcenter_username }}"
       password: "{{ vault_vcenter_password }}"
     state: "present"
@@ -73,7 +73,7 @@ projects:
     description: "Git repository containing VM migration playbooks"
     organization: "{{ aap_organization }}"
     scm_type: "git"
-    scm_url: "git@github.com:jvanway-redhat/openshift-vm-migration.git"
+    scm_url: "{{ vault_github_scm_url }}"
     scm_credential: "GitHub Deploy Key Credential"
     scm_branch: "main"
     state: "present"

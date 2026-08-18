@@ -13,7 +13,7 @@
 
   vars:
     aap_namespace: "ansible-automation-platform"
-    openshift_host: "https://api.cluster-gcnhb.dyn.redhatworkshops.io:6443"
+    openshift_host: "{{ vault_openshift_host }}"
 
   tasks:
     # -------------------------------------------------------------------------
@@ -54,7 +54,7 @@
     - name: Set Connection Facts
       ansible.builtin.set_fact:
         aap_admin_password: "{{ (gateway_secret.resources[0].data.password | b64decode) if (gateway_secret.resources | default([]) | length > 0) else vault_openshift_password }}"
-        aap_url: "{{ ('https://' ~ aap_route.resources[0].spec.host) if (aap_route.resources | default([]) | length > 0) else 'https://aap-ansible-automation-platform.apps.cluster-gcnhb.dyn.redhatworkshops.io' }}"
+        aap_url: "{{ ('https://' ~ aap_route.resources[0].spec.host) if (aap_route.resources | default([]) | length > 0) else vault_fallback_aap_url }}"
         k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     # -------------------------------------------------------------------------
@@ -65,6 +65,7 @@
         CONTROLLER_HOST: "{{ aap_url }}"
         CONTROLLER_USERNAME: "admin"
         CONTROLLER_PASSWORD: "{{ aap_admin_password }}"
+        CONTROLLER_FORCE_BASIC_AUTH: "true"
         CONTROLLER_VERIFY_SSL: "false"
       block:
         - name: Create credentials in AAP
